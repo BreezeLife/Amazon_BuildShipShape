@@ -1,5 +1,7 @@
 import type { BeeDataAdapter, BeeDay, BeeMemory, MemoryKind } from "./types";
 
+const wait = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
 const baseMemories: BeeMemory[] = [
   {
     id: "m-0812",
@@ -117,7 +119,7 @@ const cloneDay = (day: BeeDay): BeeDay => ({
 });
 
 const createSampleMemory = (kind: MemoryKind, index: number): BeeMemory => ({
-  id: `m-live-${Date.now()}`,
+  id: `m-live-${Date.now()}-${index}`,
   timestamp: new Date().toISOString(),
   timeLabel: new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()),
   kind,
@@ -134,7 +136,7 @@ export class SimulatedBeeAdapter implements BeeDataAdapter {
   private currentDay = cloneDay(initialDay);
 
   async getDay(_date: string): Promise<BeeDay> {
-    await new Promise((resolve) => window.setTimeout(resolve, 260));
+    await wait(260);
     return cloneDay(this.currentDay);
   }
 

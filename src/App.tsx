@@ -64,6 +64,15 @@ function App() {
   const adapter = adapterState.adapter;
 
   useEffect(() => {
+    if (!isNavOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsNavOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [isNavOpen]);
+
+  useEffect(() => {
     if (adapterState.error) {
       setError(adapterState.error);
       setIsLoading(false);
@@ -85,6 +94,15 @@ function App() {
       });
   }, [adapter, adapterState.error]);
 
+  const streamLabel = !adapter
+    ? "Bee stream unavailable"
+    : !isLive
+      ? "Stream paused"
+      : adapter.source === "bee"
+        ? "Bee stream"
+        : "Simulated Bee stream";
+  const streamTone = !adapter ? "error" : isLive ? "on" : "paused";
+
   const visibleMemories = useMemo(() => {
     if (!day) return [];
     if (filter === "all") return day.memories;
@@ -94,7 +112,7 @@ function App() {
   const selectedMemory = day?.memories.find((memory) => memory.id === selectedId) ?? visibleMemories[visibleMemories.length - 1];
 
   async function addLiveSignal() {
-    if (!adapter || !day) return;
+    if (!adapter || !day || !isLive || isAdding) return;
     setIsAdding(true);
     try {
       const nextDay = await adapter.addSampleMemory();
@@ -127,7 +145,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar ${isNavOpen ? "sidebar-open" : ""}`}>
+      <aside className={`sidebar ${isNavOpen ? "sidebar-open" : ""}`} aria-label="DayTrace navigation">
         <div className="brand-lockup">
           <div className="brand-mark"><Brain size={17} strokeWidth={2.4} /></div>
           <span>DayTrace</span>
@@ -143,11 +161,11 @@ function App() {
           </div>
         </div>
         <nav className="primary-nav" aria-label="Primary">
-          <div className="nav-item active" aria-current="page"><CalendarDays size={17} /><span>Today</span><span className="nav-dot" /></div>
+          <button className="nav-item active" aria-current="page" onClick={() => setIsNavOpen(false)}><CalendarDays size={17} /><span>Today</span><span className="nav-dot" /></button>
         </nav>
         <div className="nav-divider" />
         <div className="sidebar-caption">Your system</div>
-        <button className="nav-item" onClick={() => setIsLive((value) => !value)}>
+        <button className="nav-item" aria-pressed={isLive} onClick={() => setIsLive((value) => !value)}>
           <Radio size={17} />
           <span>Demo stream</span>
           <span className={`stream-dot ${isLive ? "on" : "off"}`} />
@@ -156,15 +174,16 @@ function App() {
           <div className="version-label">DAYTRACE / 0.1.0</div>
         </div>
       </aside>
+      {isNavOpen && <button className="sidebar-backdrop" aria-label="Close navigation" onClick={() => setIsNavOpen(false)} />}
 
-      <main className="main-content">
+      <main className="main-content" aria-busy={isLoading}>
         <header className="topbar">
           <button className="icon-button menu-button" onClick={() => setIsNavOpen(true)} aria-label="Open navigation">
             <Menu size={19} />
           </button>
           <div className="breadcrumb"><span>Today</span><span className="breadcrumb-slash">/</span><span className="muted">Daily signal</span></div>
           <div className="topbar-actions">
-            <div className="data-badge"><span className="pulse-dot" />{adapter?.source === "bee" ? "Bee stream" : "Simulated Bee stream"}</div>
+            <div className={`data-badge ${streamTone}`} role="status"><span className="pulse-dot" />{streamLabel}</div>
             <div className="avatar avatar-small">W</div>
           </div>
         </header>
@@ -172,7 +191,7 @@ function App() {
         <div className="content-wrap">
           <div className="page-heading">
             <div>
-              <div className="eyebrow"><Sunrise size={15} /> FRIDAY, SEPTEMBER 25</div>
+              <div className="eyebrow"><Sunrise size={15} /> {day ? `${day.weekday.toUpperCase()}, ${day.displayDate.toUpperCase()}` : "TODAY"}</div>
               <h1>Make sense of your day.</h1>
               <p>DayTrace turns small signals into a memory you can use.</p>
             </div>
@@ -188,7 +207,7 @@ function App() {
             </div>
           </div>
 
-          {error && <div className="error-banner"><CircleHelp size={17} /><span>{error}</span><button className="icon-button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={15} /></button></div>}
+          {error && <div className="error-banner" role="alert"><CircleHelp size={17} /><span>{error}</span><button className="icon-button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={15} /></button></div>}
 
           {isLoading ? <LoadingState /> : day ? (
             <>
@@ -207,21 +226,21 @@ function App() {
               </section>
 
               <div className="view-switcher" role="tablist" aria-label="Day view">
-                <button className={view === "timeline" ? "selected" : ""} onClick={() => setView("timeline")} role="tab" aria-selected={view === "timeline"}>Timeline</button>
-                <button className={view === "review" ? "selected" : ""} onClick={() => setView("review")} role="tab" aria-selected={view === "review"}>Review</button>
+                <button id="timeline-tab" className={view === "timeline" ? "selected" : ""} onClick={() => setView("timeline")} role="tab" aria-controls="timeline-panel" aria-selected={view === "timeline"}>Timeline</button>
+                <button id="review-tab" className={view === "review" ? "selected" : ""} onClick={() => setView("review")} role="tab" aria-controls="review-panel" aria-selected={view === "review"}>Review</button>
                 <div className="date-controls">
                   <span>{day.displayDate}</span>
                 </div>
               </div>
 
               {view === "timeline" ? (
-                <div className="dashboard-grid">
+                <div id="timeline-panel" className="dashboard-grid" role="tabpanel" aria-labelledby="timeline-tab" tabIndex={0}>
                   <section className="timeline-panel panel">
                     <div className="panel-heading">
                       <div><h3>Context timeline</h3><span>{visibleMemories.length} signals from your stream</span></div>
                     </div>
                     <div className="filter-row" aria-label="Signal filters">
-                      {filters.map((item) => <button key={item.value} className={filter === item.value ? "filter active" : "filter"} onClick={() => setFilter(item.value)}>{item.label}</button>)}
+                      {filters.map((item) => <button key={item.value} className={filter === item.value ? "filter active" : "filter"} aria-pressed={filter === item.value} onClick={() => setFilter(item.value)}>{item.label}</button>)}
                     </div>
                     <div className="timeline-list">
                       {visibleMemories.map((memory) => <MemoryRow key={memory.id} memory={memory} selected={selectedMemory?.id === memory.id} onSelect={() => setSelectedId(memory.id)} />)}
@@ -238,7 +257,7 @@ function App() {
                     <RokidPanel cue={lastCue} onSend={sendCue} isSending={isSending} nextCue={day.nextCue} />
                   </aside>
                 </div>
-              ) : <ReviewView day={day} onSend={sendCue} isSending={isSending} />}
+              ) : <div id="review-panel" role="tabpanel" aria-labelledby="review-tab" tabIndex={0}><ReviewView day={day} onSend={sendCue} isSending={isSending} /></div>}
             </>
           ) : <EmptyState />}
         </div>
@@ -253,7 +272,7 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
 
 function MemoryRow({ memory, selected, onSelect }: { memory: BeeMemory; selected: boolean; onSelect: () => void }) {
   return (
-    <button className={`memory-row ${selected ? "selected" : ""}`} onClick={onSelect}>
+    <button className={`memory-row ${selected ? "selected" : ""}`} aria-pressed={selected} onClick={onSelect}>
       <div className={`timeline-marker ${kindAccent[memory.kind]}`}><KindIcon kind={memory.kind} /></div>
       <div className="memory-time">{memory.timeLabel}</div>
       <div className="memory-content"><div className="memory-title"><strong>{memory.title}</strong><span className="memory-kind">{kindLabels[memory.kind]}</span></div><p>{memory.detail}</p><div className="memory-meta"><span><MapPin size={12} />{memory.location}</span>{memory.durationMinutes && <span><Clock3 size={12} />{memory.durationMinutes} min</span>}</div></div>
@@ -263,15 +282,18 @@ function MemoryRow({ memory, selected, onSelect }: { memory: BeeMemory; selected
 }
 
 function MemoryDetail({ memory }: { memory: BeeMemory }) {
-  return <div className="memory-detail"><div className={`detail-icon ${kindAccent[memory.kind]}`}><KindIcon kind={memory.kind} /></div><h4>{memory.title}</h4><p>{memory.detail}</p><div className="detail-tags">{memory.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div><div className="confidence"><div><span>Context confidence</span><strong>{Math.round(memory.confidence * 100)}%</strong></div><div className="confidence-bar"><span style={{ width: `${memory.confidence * 100}%` }} /></div></div><div className="provenance"><Radio size={13} /><span>Source: {memory.source === "bee" ? "Bee data" : "simulated data"}</span></div></div>;
+  const confidence = Math.max(0, Math.min(1, memory.confidence));
+  return <div className="memory-detail"><div className={`detail-icon ${kindAccent[memory.kind]}`}><KindIcon kind={memory.kind} /></div><h4>{memory.title}</h4><p>{memory.detail}</p><div className="detail-tags">{memory.tags.map((tag, index) => <span key={`${tag}-${index}`}>#{tag}</span>)}</div><div className="confidence"><div><span>Context confidence</span><strong>{Math.round(confidence * 100)}%</strong></div><div className="confidence-bar"><span style={{ width: `${confidence * 100}%` }} /></div></div><div className="provenance"><Radio size={13} /><span>Source: {memory.source === "bee" ? "Bee data" : "simulated data"}</span></div></div>;
 }
 
 function RokidPanel({ cue, onSend, isSending, nextCue }: { cue: RokidCue | null; onSend: () => void; isSending: boolean; nextCue: string }) {
-  return <section className="rokid-panel panel"><div className="panel-heading"><div><h3>Rokid companion</h3><span>Wearable output preview</span></div><div className="connected-label"><span className="connected-dot" /> Preview ready</div></div><div className="glasses-stage"><div className="glasses-orbit orbit-one" /><div className="glasses-orbit orbit-two" /><Glasses size={54} strokeWidth={1.35} /><span className="glasses-caption">Rokid</span></div><div className="cue-preview"><div className="cue-label"><span>Next cue</span><span className="cue-live">{cue ? "Preview sent" : "Preview"}</span></div><p>{cue?.body ?? nextCue}</p></div><button className="outline-button full-width" onClick={onSend} disabled={isSending}>{cue ? <Check size={15} /> : <Send size={15} />}{cue ? "Preview cue sent" : "Send preview cue"}</button><div className="device-note"><Glasses size={13} /><span>Simulated companion output for this build</span></div></section>;
+  return <section className="rokid-panel panel"><div className="panel-heading"><div><h3>Rokid companion</h3><span>Wearable output preview</span></div><div className="connected-label preview-only"><span className="connected-dot" /> Preview only</div></div><div className="glasses-stage"><div className="glasses-orbit orbit-one" /><div className="glasses-orbit orbit-two" /><Glasses size={54} strokeWidth={1.35} /><span className="glasses-caption">Rokid</span></div><div className="cue-preview"><div className="cue-label"><span>Next cue</span><span className="cue-live">{cue ? "Preview sent" : "Preview"}</span></div><p>{cue?.body ?? nextCue}</p></div><button className="outline-button full-width" onClick={onSend} disabled={isSending}>{cue ? <Check size={15} /> : <Send size={15} />}{cue ? "Preview cue sent" : "Send preview cue"}</button><div className="device-note"><Glasses size={13} /><span>Simulated companion output for this build</span></div></section>;
 }
 
 function ReviewView({ day, onSend, isSending }: { day: BeeDay; onSend: () => void; isSending: boolean }) {
-  const focusPercent = Math.min(100, Math.round((day.metrics.focusMinutes / day.metrics.activeMinutes) * 100));
+  const focusPercent = day.metrics.activeMinutes > 0
+    ? Math.min(100, Math.max(0, Math.round((day.metrics.focusMinutes / day.metrics.activeMinutes) * 100)))
+    : 0;
   return <div className="review-grid"><section className="review-main panel"><div className="review-top"><div><div className="signal-kicker"><Sparkles size={15} /> DAY REVIEW</div><h3>The shape of today</h3></div><span className="review-date">{day.displayDate}</span></div><p className="review-lead">{day.reflection}</p><div className="review-bars"><div className="review-bar-row"><div><span>Focus density</span><strong>{focusPercent}%</strong></div><div className="review-bar"><span style={{ width: `${focusPercent}%` }} /></div></div><div className="review-bar-row"><div><span>Context continuity</span><strong>82%</strong></div><div className="review-bar coral"><span style={{ width: "82%" }} /></div></div><div className="review-bar-row"><div><span>Recovery rhythm</span><strong>74%</strong></div><div className="review-bar green"><span style={{ width: "74%" }} /></div></div></div><div className="review-callout"><div className="callout-icon"><Sunrise size={17} /></div><div><span>One thing worth carrying forward</span><strong>{day.nextCue}</strong></div></div></section><section className="review-side panel"><div className="panel-heading"><div><h3>Tomorrow cue</h3><span>Companion output preview</span></div><Glasses size={17} className="muted-icon" /></div><div className="tomorrow-cue"><div className="cue-number">01</div><p>{day.nextCue}</p></div><button className="primary-button full-width" onClick={onSend} disabled={isSending}>{isSending ? <Activity className="spin" size={15} /> : <Glasses size={15} />}{isSending ? "Sending..." : "Send preview cue"}</button></section></div>;
 }
 
@@ -284,7 +306,7 @@ function KindIcon({ kind }: { kind: MemoryKind }) {
 }
 
 function LoadingState() {
-  return <div className="loading-state"><div className="loading-line wide" /><div className="loading-line" /><div className="loading-panel"><div className="loading-line" /><div className="loading-line short" /><div className="loading-line" /></div></div>;
+  return <div className="loading-state" role="status" aria-label="Loading day signals"><div className="loading-line wide" /><div className="loading-line" /><div className="loading-panel"><div className="loading-line" /><div className="loading-line short" /><div className="loading-line" /></div></div>;
 }
 
 function EmptyState() {
