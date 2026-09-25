@@ -56,4 +56,4 @@ The current Rokid implementation is a companion output simulator and an on-scree
 
 ## Project status
 
-The frontend MVP is complete. Build and smoke verification remains environment-dependent because this workspace is stored in iCloud; run the commands above from a local checkout before publishing.
+The frontend MVP is complete. The app has been smoke checked through a local Vite server at desktop and mobile viewport sizes. This workspace is stored in iCloud, so run `npm run build` from a local checkout before publishing if the TypeScript cache stalls.
